@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mbuzz"
+version = "0.1.0"
+description = "Multi-touch attribution SDK for Python"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+authors = [
+    { name = "Mbuzz", email = "support@mbuzz.co" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Django",
+    "Framework :: Flask",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+keywords = ["analytics", "attribution", "marketing", "tracking"]
+
+[project.urls]
+Homepage = "https://mbuzz.co"
+Documentation = "https://mbuzz.co/docs/getting-started"
+Repository = "https://github.com/mbuzzco/mbuzz-python"
+
+[project.optional-dependencies]
+django = []
+flask = []
+fastapi = ["starlette"]
+dev = ["pytest", "pytest-cov", "black", "ruff", "mypy"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mbuzz"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W"]
+
+[tool.mypy]
+python_version = "3.8"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
