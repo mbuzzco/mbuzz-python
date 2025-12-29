@@ -8,6 +8,7 @@ from ..config import config
 from ..context import RequestContext, set_context, clear_context
 from ..cookies import VISITOR_COOKIE, SESSION_COOKIE, VISITOR_MAX_AGE, SESSION_MAX_AGE
 from ..utils.identifier import generate_id
+from ..utils.session_id import generate_deterministic, generate_from_fingerprint
 from ..client.session import create_session
 
 
@@ -55,8 +56,29 @@ def _get_or_create_visitor_id() -> str:
 
 
 def _get_or_create_session_id() -> str:
-    """Get session ID from cookie or generate new one."""
-    return request.cookies.get(SESSION_COOKIE) or generate_id()
+    """Get session ID from cookie or generate deterministic one."""
+    existing = request.cookies.get(SESSION_COOKIE)
+    if existing:
+        return existing
+
+    existing_visitor_id = request.cookies.get(VISITOR_COOKIE)
+    if existing_visitor_id:
+        return generate_deterministic(existing_visitor_id)
+    else:
+        return generate_from_fingerprint(_get_client_ip(), _get_user_agent())
+
+
+def _get_client_ip() -> str:
+    """Get client IP from request headers."""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _get_user_agent() -> str:
+    """Get user agent from request."""
+    return request.headers.get("User-Agent", "unknown")
 
 
 def _set_request_context(visitor_id: str, session_id: str) -> None:
