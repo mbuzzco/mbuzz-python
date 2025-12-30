@@ -112,6 +112,100 @@ class TestTrack:
         result = track(event_type="page_view", visitor_id="vid_123")
         assert result.success is False
 
+    # Server-side session resolution tests (v0.2.0+)
+
+    @patch("mbuzz.client.track.post_with_response")
+    def test_accepts_ip_parameter(self, mock_post):
+        """Should accept and forward ip parameter."""
+        mock_post.return_value = {"events": [{"id": "evt_123"}]}
+
+        result = track(
+            event_type="page_view",
+            visitor_id="vid_123",
+            ip="192.168.1.100"
+        )
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["events"][0]["ip"] == "192.168.1.100"
+
+    @patch("mbuzz.client.track.post_with_response")
+    def test_accepts_user_agent_parameter(self, mock_post):
+        """Should accept and forward user_agent parameter."""
+        mock_post.return_value = {"events": [{"id": "evt_123"}]}
+
+        result = track(
+            event_type="page_view",
+            visitor_id="vid_123",
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        )
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["events"][0]["user_agent"] == "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+
+    @patch("mbuzz.client.track.post_with_response")
+    def test_accepts_both_ip_and_user_agent(self, mock_post):
+        """Should accept both ip and user_agent parameters."""
+        mock_post.return_value = {"events": [{"id": "evt_123"}]}
+
+        result = track(
+            event_type="page_view",
+            visitor_id="vid_123",
+            ip="10.0.0.1",
+            user_agent="Chrome/120"
+        )
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["events"][0]["ip"] == "10.0.0.1"
+        assert payload["events"][0]["user_agent"] == "Chrome/120"
+
+    @patch("mbuzz.client.track.post_with_response")
+    def test_uses_context_ip_and_user_agent(self, mock_post):
+        """Should use ip and user_agent from context if not explicitly provided."""
+        mock_post.return_value = {"events": [{"id": "evt_123"}]}
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            session_id="ctx_sid",
+            ip="203.0.113.50",
+            user_agent="Safari/17.0"
+        ))
+
+        result = track(event_type="page_view")
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["events"][0]["ip"] == "203.0.113.50"
+        assert payload["events"][0]["user_agent"] == "Safari/17.0"
+
+    @patch("mbuzz.client.track.post_with_response")
+    def test_explicit_ip_overrides_context(self, mock_post):
+        """Should use explicit ip/user_agent over context."""
+        mock_post.return_value = {"events": [{"id": "evt_123"}]}
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            session_id="ctx_sid",
+            ip="context_ip",
+            user_agent="context_ua"
+        ))
+
+        result = track(
+            event_type="page_view",
+            ip="explicit_ip",
+            user_agent="explicit_ua"
+        )
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["events"][0]["ip"] == "explicit_ip"
+        assert payload["events"][0]["user_agent"] == "explicit_ua"
+
 
 class TestIdentify:
     """Test identify function."""

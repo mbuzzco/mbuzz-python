@@ -14,6 +14,8 @@ class RequestContext:
     user_id: Optional[str] = None
     url: Optional[str] = None
     referrer: Optional[str] = None
+    ip: Optional[str] = None
+    user_agent: Optional[str] = None
 
     def enrich_properties(self, properties: Dict[str, Any]) -> Dict[str, Any]:
         """Add url and referrer to properties if not already present."""

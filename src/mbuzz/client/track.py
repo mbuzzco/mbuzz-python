@@ -28,10 +28,12 @@ class TrackOptions:
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     properties: Optional[Dict[str, Any]] = None
+    ip: Optional[str] = None
+    user_agent: Optional[str] = None
 
 
 def _resolve_ids(options: TrackOptions) -> TrackOptions:
-    """Resolve visitor/session/user IDs from context if not provided."""
+    """Resolve visitor/session/user IDs and ip/user_agent from context if not provided."""
     ctx = get_context()
     if not ctx:
         return options
@@ -42,6 +44,8 @@ def _resolve_ids(options: TrackOptions) -> TrackOptions:
         session_id=options.session_id or ctx.session_id,
         user_id=options.user_id or ctx.user_id,
         properties=options.properties,
+        ip=options.ip or ctx.ip,
+        user_agent=options.user_agent or ctx.user_agent,
     )
 
 
@@ -62,18 +66,21 @@ def _validate(options: TrackOptions) -> bool:
 
 def _build_payload(options: TrackOptions, properties: Dict[str, Any]) -> Dict[str, Any]:
     """Build API payload from options."""
-    return {
-        "events": [
-            {
-                "event_type": options.event_type,
-                "visitor_id": options.visitor_id,
-                "session_id": options.session_id,
-                "user_id": options.user_id,
-                "properties": properties,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-        ]
+    event = {
+        "event_type": options.event_type,
+        "visitor_id": options.visitor_id,
+        "session_id": options.session_id,
+        "user_id": options.user_id,
+        "properties": properties,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    # Add ip and user_agent only if provided (for server-side session resolution)
+    if options.ip:
+        event["ip"] = options.ip
+    if options.user_agent:
+        event["user_agent"] = options.user_agent
+
+    return {"events": [event]}
 
 
 def _parse_response(response: Optional[Dict[str, Any]], options: TrackOptions) -> TrackResult:
@@ -97,6 +104,8 @@ def track(
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
     properties: Optional[Dict[str, Any]] = None,
+    ip: Optional[str] = None,
+    user_agent: Optional[str] = None,
 ) -> TrackResult:
     """Track an event.
 
@@ -106,6 +115,8 @@ def track(
         session_id: Session ID (uses context if not provided)
         user_id: User ID (uses context if not provided)
         properties: Additional event properties
+        ip: Client IP address for server-side session resolution
+        user_agent: Client user agent for server-side session resolution
 
     Returns:
         TrackResult with success status and event details
@@ -116,6 +127,8 @@ def track(
         session_id=session_id,
         user_id=user_id,
         properties=properties,
+        ip=ip,
+        user_agent=user_agent,
     )
 
     options = _resolve_ids(options)
