@@ -7,7 +7,7 @@ from flask import Flask, g
 from mbuzz.middleware.flask import init_app
 from mbuzz.config import config
 from mbuzz.context import get_context, clear_context
-from mbuzz.cookies import VISITOR_COOKIE, SESSION_COOKIE, VISITOR_MAX_AGE, SESSION_MAX_AGE
+from mbuzz.cookies import VISITOR_COOKIE, VISITOR_MAX_AGE
 
 
 class TestFlaskMiddleware:
@@ -100,8 +100,8 @@ class TestFlaskMiddleware:
             assert visitor_cookie is not None
             assert VISITOR_COOKIE in visitor_cookie
 
-    def test_creates_session_id_for_new_visitor(self):
-        """Should create session ID for new visitor."""
+    def test_only_sets_visitor_cookie(self):
+        """Should only set visitor cookie (no session cookie)."""
         config.init(api_key="sk_test_123")
         init_app(self.app)
 
@@ -109,12 +109,10 @@ class TestFlaskMiddleware:
             response = client.get("/")
 
             cookies = response.headers.getlist("Set-Cookie")
-            session_cookie = next(
-                (c for c in cookies if SESSION_COOKIE in c), None
-            )
-
-            assert session_cookie is not None
-            assert SESSION_COOKIE in session_cookie
+            # Should only have one cookie (visitor)
+            mbuzz_cookies = [c for c in cookies if "_mbuzz_" in c]
+            assert len(mbuzz_cookies) == 1
+            assert VISITOR_COOKIE in mbuzz_cookies[0]
 
     def test_reuses_visitor_id_from_cookie(self):
         """Should reuse existing visitor ID from cookie."""
@@ -134,24 +132,6 @@ class TestFlaskMiddleware:
 
             assert existing_vid in visitor_cookie
 
-    def test_reuses_session_id_from_cookie(self):
-        """Should reuse existing session ID from cookie."""
-        config.init(api_key="sk_test_123")
-        init_app(self.app)
-
-        existing_sid = "xyz789" * 10 + "xyzw"
-
-        with self.app.test_client() as client:
-            client.set_cookie(SESSION_COOKIE, existing_sid)
-            response = client.get("/")
-
-            cookies = response.headers.getlist("Set-Cookie")
-            session_cookie = next(
-                (c for c in cookies if SESSION_COOKIE in c), None
-            )
-
-            assert existing_sid in session_cookie
-
     def test_sets_context_during_request(self):
         """Should set request context during request handling."""
         config.init(api_key="sk_test_123")
@@ -164,7 +144,8 @@ class TestFlaskMiddleware:
             ctx = get_context()
             if ctx:
                 captured_context["visitor_id"] = ctx.visitor_id
-                captured_context["session_id"] = ctx.session_id
+                captured_context["ip"] = ctx.ip
+                captured_context["user_agent"] = ctx.user_agent
                 captured_context["url"] = ctx.url
             return "captured"
 
@@ -172,9 +153,9 @@ class TestFlaskMiddleware:
             client.get("/capture")
 
             assert "visitor_id" in captured_context
-            assert "session_id" in captured_context
+            assert "ip" in captured_context
+            assert "user_agent" in captured_context
             assert len(captured_context["visitor_id"]) == 64
-            assert len(captured_context["session_id"]) == 64
 
     def test_clears_context_after_request(self):
         """Should clear context after request completes."""
@@ -225,33 +206,6 @@ class TestFlaskMiddleware:
 
             assert captured_referrer.get("referrer") == "https://google.com"
 
-    @patch("mbuzz.middleware.flask.create_session")
-    def test_calls_create_session_for_new_session(self, mock_create_session):
-        """Should call create_session for new sessions."""
-        config.init(api_key="sk_test_123")
-        init_app(self.app)
-
-        with self.app.test_client() as client:
-            client.get("/")
-
-            # Give thread time to start
-            import time
-            time.sleep(0.1)
-
-            assert mock_create_session.called
-
-    @patch("mbuzz.middleware.flask.create_session")
-    def test_does_not_call_create_session_for_existing_session(self, mock_create_session):
-        """Should not call create_session for existing sessions."""
-        config.init(api_key="sk_test_123")
-        init_app(self.app)
-
-        with self.app.test_client() as client:
-            client.set_cookie(SESSION_COOKIE, "existing_session_id_abc123")
-            client.get("/")
-
-            assert not mock_create_session.called
-
     def test_sets_visitor_cookie_max_age(self):
         """Should set visitor cookie with correct max age."""
         config.init(api_key="sk_test_123")
@@ -267,21 +221,6 @@ class TestFlaskMiddleware:
 
             assert f"Max-Age={VISITOR_MAX_AGE}" in visitor_cookie
 
-    def test_sets_session_cookie_max_age(self):
-        """Should set session cookie with correct max age."""
-        config.init(api_key="sk_test_123")
-        init_app(self.app)
-
-        with self.app.test_client() as client:
-            response = client.get("/")
-
-            cookies = response.headers.getlist("Set-Cookie")
-            session_cookie = next(
-                (c for c in cookies if SESSION_COOKIE in c), None
-            )
-
-            assert f"Max-Age={SESSION_MAX_AGE}" in session_cookie
-
     def test_sets_httponly_on_cookies(self):
         """Should set HttpOnly flag on cookies."""
         config.init(api_key="sk_test_123")
@@ -294,12 +233,8 @@ class TestFlaskMiddleware:
             visitor_cookie = next(
                 (c for c in cookies if VISITOR_COOKIE in c), None
             )
-            session_cookie = next(
-                (c for c in cookies if SESSION_COOKIE in c), None
-            )
 
             assert "HttpOnly" in visitor_cookie
-            assert "HttpOnly" in session_cookie
 
     def test_sets_samesite_lax_on_cookies(self):
         """Should set SameSite=Lax on cookies."""
@@ -313,12 +248,8 @@ class TestFlaskMiddleware:
             visitor_cookie = next(
                 (c for c in cookies if VISITOR_COOKIE in c), None
             )
-            session_cookie = next(
-                (c for c in cookies if SESSION_COOKIE in c), None
-            )
 
             assert "SameSite=Lax" in visitor_cookie
-            assert "SameSite=Lax" in session_cookie
 
     def test_generates_64_char_visitor_id(self):
         """Should generate 64-character visitor ID."""
@@ -339,24 +270,43 @@ class TestFlaskMiddleware:
 
             assert len(captured.get("visitor_id", "")) == 64
 
-    def test_generates_64_char_session_id(self):
-        """Should generate 64-character session ID."""
+    def test_captures_ip_from_x_forwarded_for(self):
+        """Should capture client IP from X-Forwarded-For header."""
         config.init(api_key="sk_test_123")
         init_app(self.app)
 
         captured = {}
 
-        @self.app.route("/check")
-        def check():
+        @self.app.route("/check-ip")
+        def check_ip():
             ctx = get_context()
             if ctx:
-                captured["session_id"] = ctx.session_id
+                captured["ip"] = ctx.ip
             return "ok"
 
         with self.app.test_client() as client:
-            client.get("/check")
+            client.get("/check-ip", headers={"X-Forwarded-For": "203.0.113.50, 198.51.100.1"})
 
-            assert len(captured.get("session_id", "")) == 64
+            assert captured.get("ip") == "203.0.113.50"
+
+    def test_captures_user_agent(self):
+        """Should capture user agent from request."""
+        config.init(api_key="sk_test_123")
+        init_app(self.app)
+
+        captured = {}
+
+        @self.app.route("/check-ua")
+        def check_ua():
+            ctx = get_context()
+            if ctx:
+                captured["user_agent"] = ctx.user_agent
+            return "ok"
+
+        with self.app.test_client() as client:
+            client.get("/check-ua", headers={"User-Agent": "Mozilla/5.0 Test"})
+
+            assert captured.get("user_agent") == "Mozilla/5.0 Test"
 
     def test_skips_custom_paths(self):
         """Should skip custom skip paths."""

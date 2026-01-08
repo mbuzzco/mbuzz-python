@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from mbuzz.client.track import track, TrackResult
 from mbuzz.client.identify import identify
 from mbuzz.client.conversion import conversion, ConversionResult
-from mbuzz.client.session import create_session
 from mbuzz.context import RequestContext, set_context, clear_context
 from mbuzz.config import config
 
@@ -52,7 +51,11 @@ class TestTrack:
     def test_uses_context_visitor_id(self, mock_post):
         """Should use visitor_id from context."""
         mock_post.return_value = {"events": [{"id": "evt_123"}]}
-        set_context(RequestContext(visitor_id="ctx_vid", session_id="ctx_sid"))
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        ))
 
         result = track(event_type="page_view")
         assert result.success is True
@@ -67,7 +70,8 @@ class TestTrack:
         mock_post.return_value = {"events": [{"id": "evt_123"}]}
         set_context(RequestContext(
             visitor_id="vid_123",
-            session_id="sid_456",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
             url="https://example.com/page",
             referrer="https://google.com",
         ))
@@ -89,7 +93,6 @@ class TestTrack:
         track(
             event_type="button_click",
             visitor_id="vid_123",
-            session_id="sid_456",
             properties={"button": "signup"},
         )
 
@@ -100,7 +103,6 @@ class TestTrack:
         event = payload["events"][0]
         assert event["event_type"] == "button_click"
         assert event["visitor_id"] == "vid_123"
-        assert event["session_id"] == "sid_456"
         assert event["properties"]["button"] == "signup"
         assert "timestamp" in event
 
@@ -111,8 +113,6 @@ class TestTrack:
 
         result = track(event_type="page_view", visitor_id="vid_123")
         assert result.success is False
-
-    # Server-side session resolution tests (v0.2.0+)
 
     @patch("mbuzz.client.track.post_with_response")
     def test_accepts_ip_parameter(self, mock_post):
@@ -170,9 +170,8 @@ class TestTrack:
         mock_post.return_value = {"events": [{"id": "evt_123"}]}
         set_context(RequestContext(
             visitor_id="ctx_vid",
-            session_id="ctx_sid",
             ip="203.0.113.50",
-            user_agent="Safari/17.0"
+            user_agent="Safari/17.0",
         ))
 
         result = track(event_type="page_view")
@@ -189,9 +188,8 @@ class TestTrack:
         mock_post.return_value = {"events": [{"id": "evt_123"}]}
         set_context(RequestContext(
             visitor_id="ctx_vid",
-            session_id="ctx_sid",
             ip="context_ip",
-            user_agent="context_ua"
+            user_agent="context_ua",
         ))
 
         result = track(
@@ -205,6 +203,22 @@ class TestTrack:
         payload = call_args[1]
         assert payload["events"][0]["ip"] == "explicit_ip"
         assert payload["events"][0]["user_agent"] == "explicit_ua"
+
+    @patch("mbuzz.client.track.post_with_response")
+    def test_accepts_identifier_parameter(self, mock_post):
+        """Should accept and forward identifier parameter."""
+        mock_post.return_value = {"events": [{"id": "evt_123"}]}
+
+        result = track(
+            event_type="page_view",
+            visitor_id="vid_123",
+            identifier={"email": "test@example.com"}
+        )
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["events"][0]["identifier"] == {"email": "test@example.com"}
 
 
 class TestIdentify:
@@ -241,7 +255,11 @@ class TestIdentify:
     def test_uses_context_visitor_id(self, mock_post):
         """Should use visitor_id from context."""
         mock_post.return_value = True
-        set_context(RequestContext(visitor_id="ctx_vid", session_id="ctx_sid"))
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        ))
 
         identify(user_id="user_123")
 
@@ -312,7 +330,11 @@ class TestConversion:
     def test_uses_context_visitor_id(self, mock_post):
         """Should use visitor_id from context."""
         mock_post.return_value = {"conversion": {"id": "conv_123"}}
-        set_context(RequestContext(visitor_id="ctx_vid", session_id="ctx_sid"))
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        ))
 
         result = conversion(conversion_type="purchase")
         assert result.success is True
@@ -356,61 +378,36 @@ class TestConversion:
         result = conversion(conversion_type="purchase", visitor_id="vid_123")
         assert result.attribution == {"model": "linear", "sessions": []}
 
+    @patch("mbuzz.client.conversion.post_with_response")
+    def test_accepts_ip_and_user_agent(self, mock_post):
+        """Should accept and forward ip and user_agent parameters."""
+        mock_post.return_value = {"conversion": {"id": "conv_123"}}
 
-class TestCreateSession:
-    """Test create_session function."""
-
-    def setup_method(self):
-        """Set up before each test."""
-        config.reset()
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
-
-    def teardown_method(self):
-        """Clean up after each test."""
-        config.reset()
-
-    @patch("mbuzz.client.session.post")
-    def test_returns_true_on_success(self, mock_post):
-        """Should return True on success."""
-        mock_post.return_value = True
-
-        result = create_session(
+        result = conversion(
+            conversion_type="purchase",
             visitor_id="vid_123",
-            session_id="sid_456",
-            url="https://example.com",
+            ip="192.168.1.100",
+            user_agent="Mozilla/5.0",
         )
-        assert result is True
+        assert result.success is True
 
-    @patch("mbuzz.client.session.post")
-    def test_sends_correct_payload(self, mock_post):
-        """Should send correctly structured payload."""
-        mock_post.return_value = True
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["ip"] == "192.168.1.100"
+        assert payload["user_agent"] == "Mozilla/5.0"
 
-        create_session(
+    @patch("mbuzz.client.conversion.post_with_response")
+    def test_accepts_identifier_parameter(self, mock_post):
+        """Should accept and forward identifier parameter."""
+        mock_post.return_value = {"conversion": {"id": "conv_123"}}
+
+        result = conversion(
+            conversion_type="purchase",
             visitor_id="vid_123",
-            session_id="sid_456",
-            url="https://example.com/page",
-            referrer="https://google.com",
+            identifier={"email": "test@example.com"}
         )
+        assert result.success is True
 
-        call_args = mock_post.call_args
-        assert call_args[0][0] == "/sessions"
-        payload = call_args[0][1]
-        session = payload["session"]
-        assert session["visitor_id"] == "vid_123"
-        assert session["session_id"] == "sid_456"
-        assert session["url"] == "https://example.com/page"
-        assert session["referrer"] == "https://google.com"
-        assert "started_at" in session
-
-    @patch("mbuzz.client.session.post")
-    def test_returns_false_on_api_error(self, mock_post):
-        """Should return False on API error."""
-        mock_post.return_value = False
-
-        result = create_session(
-            visitor_id="vid_123",
-            session_id="sid_456",
-            url="https://example.com",
-        )
-        assert result is False
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["identifier"] == {"email": "test@example.com"}

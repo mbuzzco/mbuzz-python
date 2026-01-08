@@ -1,4 +1,5 @@
 """Mbuzz - Multi-touch attribution SDK for Python."""
+# NOTE: Session ID removed in 0.7.0 - server handles session resolution
 
 from typing import Any, Dict, Optional, Union
 
@@ -8,7 +9,7 @@ from .client.track import track, TrackResult
 from .client.identify import identify
 from .client.conversion import conversion, ConversionResult
 
-__version__ = "0.2.0"
+__version__ = "0.7.0"
 
 
 def init(
@@ -61,12 +62,6 @@ def visitor_id() -> Optional[str]:
     return ctx.visitor_id if ctx else None
 
 
-def session_id() -> Optional[str]:
-    """Get current session ID from context."""
-    ctx = get_context()
-    return ctx.session_id if ctx else None
-
-
 def user_id() -> Optional[str]:
     """Get current user ID from context."""
     ctx = get_context()
@@ -79,7 +74,6 @@ __all__ = [
     "conversion",
     "identify",
     "visitor_id",
-    "session_id",
     "user_id",
     "TrackResult",
     "ConversionResult",

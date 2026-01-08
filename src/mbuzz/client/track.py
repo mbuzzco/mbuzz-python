@@ -1,4 +1,5 @@
 """Track request for event tracking."""
+# NOTE: Session ID removed in 0.7.0 - server handles session resolution
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -16,7 +17,6 @@ class TrackResult:
     event_id: Optional[str] = None
     event_type: Optional[str] = None
     visitor_id: Optional[str] = None
-    session_id: Optional[str] = None
 
 
 @dataclass
@@ -25,15 +25,15 @@ class TrackOptions:
 
     event_type: str
     visitor_id: Optional[str] = None
-    session_id: Optional[str] = None
     user_id: Optional[str] = None
     properties: Optional[Dict[str, Any]] = None
     ip: Optional[str] = None
     user_agent: Optional[str] = None
+    identifier: Optional[Dict[str, str]] = None
 
 
 def _resolve_ids(options: TrackOptions) -> TrackOptions:
-    """Resolve visitor/session/user IDs and ip/user_agent from context if not provided."""
+    """Resolve visitor/user IDs and ip/user_agent from context if not provided."""
     ctx = get_context()
     if not ctx:
         return options
@@ -41,11 +41,11 @@ def _resolve_ids(options: TrackOptions) -> TrackOptions:
     return TrackOptions(
         event_type=options.event_type,
         visitor_id=options.visitor_id or ctx.visitor_id,
-        session_id=options.session_id or ctx.session_id,
         user_id=options.user_id or ctx.user_id,
         properties=options.properties,
         ip=options.ip or ctx.ip,
         user_agent=options.user_agent or ctx.user_agent,
+        identifier=options.identifier,
     )
 
 
@@ -66,19 +66,23 @@ def _validate(options: TrackOptions) -> bool:
 
 def _build_payload(options: TrackOptions, properties: Dict[str, Any]) -> Dict[str, Any]:
     """Build API payload from options."""
-    event = {
+    event: Dict[str, Any] = {
         "event_type": options.event_type,
-        "visitor_id": options.visitor_id,
-        "session_id": options.session_id,
-        "user_id": options.user_id,
         "properties": properties,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    # Add ip and user_agent only if provided (for server-side session resolution)
+
+    # Only include non-None values
+    if options.visitor_id:
+        event["visitor_id"] = options.visitor_id
+    if options.user_id:
+        event["user_id"] = options.user_id
     if options.ip:
         event["ip"] = options.ip
     if options.user_agent:
         event["user_agent"] = options.user_agent
+    if options.identifier:
+        event["identifier"] = options.identifier
 
     return {"events": [event]}
 
@@ -94,29 +98,28 @@ def _parse_response(response: Optional[Dict[str, Any]], options: TrackOptions) -
         event_id=event.get("id"),
         event_type=options.event_type,
         visitor_id=options.visitor_id,
-        session_id=options.session_id,
     )
 
 
 def track(
     event_type: str,
     visitor_id: Optional[str] = None,
-    session_id: Optional[str] = None,
     user_id: Optional[str] = None,
     properties: Optional[Dict[str, Any]] = None,
     ip: Optional[str] = None,
     user_agent: Optional[str] = None,
+    identifier: Optional[Dict[str, str]] = None,
 ) -> TrackResult:
     """Track an event.
 
     Args:
         event_type: Type of event (e.g., "page_view", "button_click")
         visitor_id: Visitor ID (uses context if not provided)
-        session_id: Session ID (uses context if not provided)
         user_id: User ID (uses context if not provided)
         properties: Additional event properties
         ip: Client IP address for server-side session resolution
         user_agent: Client user agent for server-side session resolution
+        identifier: Cross-device identifier (email, user_id, etc.)
 
     Returns:
         TrackResult with success status and event details
@@ -124,11 +127,11 @@ def track(
     options = TrackOptions(
         event_type=event_type,
         visitor_id=visitor_id,
-        session_id=session_id,
         user_id=user_id,
         properties=properties,
         ip=ip,
         user_agent=user_agent,
+        identifier=identifier,
     )
 
     options = _resolve_ids(options)

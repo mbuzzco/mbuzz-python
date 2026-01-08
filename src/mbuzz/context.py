@@ -1,4 +1,5 @@
 """Request context management using contextvars."""
+# NOTE: Session ID removed in 0.7.0 - server handles session resolution
 
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -10,12 +11,11 @@ class RequestContext:
     """Holds request-scoped data for tracking."""
 
     visitor_id: str
-    session_id: str
+    ip: str
+    user_agent: str
     user_id: Optional[str] = None
     url: Optional[str] = None
     referrer: Optional[str] = None
-    ip: Optional[str] = None
-    user_agent: Optional[str] = None
 
     def enrich_properties(self, properties: Dict[str, Any]) -> Dict[str, Any]:
         """Add url and referrer to properties if not already present."""

@@ -8,14 +8,23 @@ class TestRequestContext:
     """Test RequestContext dataclass."""
 
     def test_creates_with_required_fields(self):
-        """Should create context with visitor and session IDs."""
-        ctx = RequestContext(visitor_id="vid_123", session_id="sid_456")
+        """Should create context with visitor_id, ip, and user_agent."""
+        ctx = RequestContext(
+            visitor_id="vid_123",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        )
         assert ctx.visitor_id == "vid_123"
-        assert ctx.session_id == "sid_456"
+        assert ctx.ip == "192.168.1.1"
+        assert ctx.user_agent == "Mozilla/5.0"
 
     def test_optional_fields_default_to_none(self):
         """Should default optional fields to None."""
-        ctx = RequestContext(visitor_id="vid_123", session_id="sid_456")
+        ctx = RequestContext(
+            visitor_id="vid_123",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        )
         assert ctx.user_id is None
         assert ctx.url is None
         assert ctx.referrer is None
@@ -24,13 +33,15 @@ class TestRequestContext:
         """Should accept all fields."""
         ctx = RequestContext(
             visitor_id="vid_123",
-            session_id="sid_456",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
             user_id="user_789",
             url="https://example.com/page",
             referrer="https://google.com",
         )
         assert ctx.visitor_id == "vid_123"
-        assert ctx.session_id == "sid_456"
+        assert ctx.ip == "192.168.1.1"
+        assert ctx.user_agent == "Mozilla/5.0"
         assert ctx.user_id == "user_789"
         assert ctx.url == "https://example.com/page"
         assert ctx.referrer == "https://google.com"
@@ -43,7 +54,8 @@ class TestEnrichProperties:
         """Should add url to properties."""
         ctx = RequestContext(
             visitor_id="vid_123",
-            session_id="sid_456",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
             url="https://example.com/page",
         )
         result = ctx.enrich_properties({})
@@ -53,7 +65,8 @@ class TestEnrichProperties:
         """Should add referrer to properties."""
         ctx = RequestContext(
             visitor_id="vid_123",
-            session_id="sid_456",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
             referrer="https://google.com",
         )
         result = ctx.enrich_properties({})
@@ -63,7 +76,8 @@ class TestEnrichProperties:
         """Custom properties should override context values."""
         ctx = RequestContext(
             visitor_id="vid_123",
-            session_id="sid_456",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
             url="https://example.com/page",
         )
         result = ctx.enrich_properties({"url": "custom_url"})
@@ -73,7 +87,8 @@ class TestEnrichProperties:
         """Should preserve custom properties."""
         ctx = RequestContext(
             visitor_id="vid_123",
-            session_id="sid_456",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
             url="https://example.com/page",
         )
         result = ctx.enrich_properties({"custom": "value", "count": 42})
@@ -83,7 +98,11 @@ class TestEnrichProperties:
 
     def test_handles_empty_context(self):
         """Should work with no url or referrer in context."""
-        ctx = RequestContext(visitor_id="vid_123", session_id="sid_456")
+        ctx = RequestContext(
+            visitor_id="vid_123",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        )
         result = ctx.enrich_properties({"custom": "value"})
         assert result == {"custom": "value"}
         assert "url" not in result
@@ -107,21 +126,37 @@ class TestContextVar:
 
     def test_set_context_stores_context(self):
         """Should store context."""
-        ctx = RequestContext(visitor_id="vid_123", session_id="sid_456")
+        ctx = RequestContext(
+            visitor_id="vid_123",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        )
         set_context(ctx)
         assert get_context() is ctx
 
     def test_clear_context_removes_context(self):
         """Should clear stored context."""
-        ctx = RequestContext(visitor_id="vid_123", session_id="sid_456")
+        ctx = RequestContext(
+            visitor_id="vid_123",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        )
         set_context(ctx)
         clear_context()
         assert get_context() is None
 
     def test_context_is_isolated_per_context(self):
         """Context should be isolated (uses contextvars)."""
-        ctx1 = RequestContext(visitor_id="vid_1", session_id="sid_1")
-        ctx2 = RequestContext(visitor_id="vid_2", session_id="sid_2")
+        ctx1 = RequestContext(
+            visitor_id="vid_1",
+            ip="192.168.1.1",
+            user_agent="Mozilla/5.0",
+        )
+        ctx2 = RequestContext(
+            visitor_id="vid_2",
+            ip="192.168.1.2",
+            user_agent="Chrome/120",
+        )
 
         set_context(ctx1)
         assert get_context().visitor_id == "vid_1"
