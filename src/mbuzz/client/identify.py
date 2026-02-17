@@ -33,4 +33,9 @@ def identify(
         "traits": traits or {},
     }
 
-    return post("/identify", payload)
+    result = post("/identify", payload)
+
+    if result and ctx:
+        ctx.user_id = str(user_id)
+
+    return result

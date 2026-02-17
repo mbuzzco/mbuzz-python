@@ -297,6 +297,27 @@ class TestIdentify:
         payload = call_args[1]
         assert payload["user_id"] == "12345"
 
+    @patch("mbuzz.client.conversion.post_with_response")
+    @patch("mbuzz.client.identify.post")
+    def test_conversion_picks_up_user_id_after_identify(self, mock_identify_post, mock_conv_post):
+        """conversion() should resolve user_id from context after identify()."""
+        mock_identify_post.return_value = True
+        mock_conv_post.return_value = {"conversion": {"id": "conv_123"}}
+
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            ip="10.0.0.1",
+            user_agent="Chrome/120",
+        ))
+
+        identify(user_id="user_123")
+        result = conversion(conversion_type="purchase", revenue=99.99)
+
+        assert result.success is True
+        call_args = mock_conv_post.call_args[0]
+        payload = call_args[1]
+        assert payload["user_id"] == "user_123"
+
 
 class TestConversion:
     """Test conversion function."""
@@ -411,3 +432,43 @@ class TestConversion:
         call_args = mock_post.call_args[0]
         payload = call_args[1]
         assert payload["identifier"] == {"email": "test@example.com"}
+
+    @patch("mbuzz.client.conversion.post_with_response")
+    def test_uses_context_ip_and_user_agent(self, mock_post):
+        """Should use ip and user_agent from context if not explicitly provided."""
+        mock_post.return_value = {"conversion": {"id": "conv_123"}}
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            ip="203.0.113.50",
+            user_agent="Safari/17.0",
+        ))
+
+        result = conversion(conversion_type="purchase")
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["ip"] == "203.0.113.50"
+        assert payload["user_agent"] == "Safari/17.0"
+
+    @patch("mbuzz.client.conversion.post_with_response")
+    def test_explicit_ip_overrides_context(self, mock_post):
+        """Should use explicit ip/user_agent over context."""
+        mock_post.return_value = {"conversion": {"id": "conv_123"}}
+        set_context(RequestContext(
+            visitor_id="ctx_vid",
+            ip="context_ip",
+            user_agent="context_ua",
+        ))
+
+        result = conversion(
+            conversion_type="purchase",
+            ip="explicit_ip",
+            user_agent="explicit_ua"
+        )
+        assert result.success is True
+
+        call_args = mock_post.call_args[0]
+        payload = call_args[1]
+        assert payload["ip"] == "explicit_ip"
+        assert payload["user_agent"] == "explicit_ua"
