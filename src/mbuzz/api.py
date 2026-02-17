@@ -10,7 +10,7 @@ from .config import config
 
 logger = logging.getLogger("mbuzz")
 
-VERSION = "0.7.3"
+VERSION = "0.7.4"
 
 
 def post(path: str, payload: Dict[str, Any]) -> bool:

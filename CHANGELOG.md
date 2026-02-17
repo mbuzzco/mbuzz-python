@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.4 (2026-02-17)
+
+### Fixed
+
+- **`identify()` now writes `user_id` back to context** — after a successful API call, `user_id` is stored in the `RequestContext` so that subsequent `conversion()` calls in the same request can resolve it.
+
 ## 0.7.3 (2026-02-03)
 
 ### Added
