@@ -139,6 +139,7 @@ def _create_session_async(
             "url": url,
             "referrer": referrer,
             "device_fingerprint": device_fingerprint(ip, user_agent),
+            "user_agent": user_agent,
             "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
     }
