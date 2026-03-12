@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-DEFAULT_API_URL = "https://mbuzz.co/api/v1"
+DEFAULT_API_URL = "https://api.mbuzz.co/api/v1"
 DEFAULT_TIMEOUT = 5.0
 
 DEFAULT_SKIP_PATHS = [

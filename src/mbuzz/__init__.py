@@ -25,7 +25,7 @@ def init(
 
     Args:
         api_key: Your mbuzz API key (required)
-        api_url: API endpoint URL (default: https://mbuzz.co/api/v1)
+        api_url: API endpoint URL (default: https://api.mbuzz.co/api/v1)
         enabled: Enable/disable tracking (default: True)
         debug: Enable debug logging (default: False)
         timeout: Request timeout in seconds (default: 5.0)
