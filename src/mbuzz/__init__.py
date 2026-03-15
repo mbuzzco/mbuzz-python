@@ -9,12 +9,11 @@ from .client.track import track, TrackResult
 from .client.identify import identify
 from .client.conversion import conversion, ConversionResult
 
-__version__ = "0.7.5"
+__version__ = "0.8.2"
 
 
 def init(
     api_key: str,
-    api_url: Optional[str] = None,
     enabled: bool = True,
     debug: bool = False,
     timeout: Optional[float] = None,
@@ -25,7 +24,6 @@ def init(
 
     Args:
         api_key: Your mbuzz API key (required)
-        api_url: API endpoint URL (default: https://api.mbuzz.co/api/v1)
         enabled: Enable/disable tracking (default: True)
         debug: Enable debug logging (default: False)
         timeout: Request timeout in seconds (default: 5.0)
@@ -34,7 +32,6 @@ def init(
     """
     config.init(
         api_key=api_key,
-        api_url=api_url,
         enabled=enabled,
         debug=debug,
         timeout=timeout,

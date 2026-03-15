@@ -52,7 +52,6 @@ class Config:
     def init(
         self,
         api_key: str,
-        api_url: Optional[str] = None,
         enabled: bool = True,
         debug: bool = False,
         timeout: Optional[float] = None,
@@ -64,7 +63,7 @@ class Config:
             raise ValueError("api_key is required")
 
         self.api_key = api_key
-        self.api_url = api_url or DEFAULT_API_URL
+        self.api_url = DEFAULT_API_URL
         self.enabled = enabled
         self.debug = debug
         self.timeout = timeout or DEFAULT_TIMEOUT

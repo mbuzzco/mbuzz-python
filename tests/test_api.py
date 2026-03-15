@@ -15,7 +15,8 @@ class TestPost:
     def setup_method(self):
         """Set up config before each test."""
         config.reset()
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
+        config.init(api_key="sk_test_123")
+        config.api_url = "http://localhost:3000/api/v1"
 
     def teardown_method(self):
         """Reset config after each test."""
@@ -118,7 +119,8 @@ class TestPostWithResponse:
     def setup_method(self):
         """Set up config before each test."""
         config.reset()
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
+        config.init(api_key="sk_test_123")
+        config.api_url = "http://localhost:3000/api/v1"
 
     def teardown_method(self):
         """Reset config after each test."""
@@ -172,7 +174,8 @@ class TestMakeRequest:
     def setup_method(self):
         """Set up config before each test."""
         config.reset()
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
+        config.init(api_key="sk_test_123")
+        config.api_url = "http://localhost:3000/api/v1"
 
     def teardown_method(self):
         """Reset config after each test."""
@@ -220,7 +223,8 @@ class TestMakeRequest:
     @patch("mbuzz.api.urlopen")
     def test_handles_base_url_with_trailing_slash(self, mock_urlopen):
         """Should handle base URL with trailing slash."""
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1/")
+        config.init(api_key="sk_test_123")
+        config.api_url = "http://localhost:3000/api/v1/"
         mock_response = MagicMock()
         mock_response.status = 200
         mock_urlopen.return_value = mock_response

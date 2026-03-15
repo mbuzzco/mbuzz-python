@@ -17,7 +17,8 @@ class TestTrack:
     def setup_method(self):
         """Set up before each test."""
         config.reset()
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
+        config.init(api_key="sk_test_123")
+        config.api_url = "http://localhost:3000/api/v1"
         clear_context()
 
     def teardown_method(self):
@@ -227,7 +228,8 @@ class TestIdentify:
     def setup_method(self):
         """Set up before each test."""
         config.reset()
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
+        config.init(api_key="sk_test_123")
+        config.api_url = "http://localhost:3000/api/v1"
         clear_context()
 
     def teardown_method(self):
@@ -325,7 +327,8 @@ class TestConversion:
     def setup_method(self):
         """Set up before each test."""
         config.reset()
-        config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
+        config.init(api_key="sk_test_123")
+        config.api_url = "http://localhost:3000/api/v1"
         clear_context()
 
     def teardown_method(self):

@@ -29,9 +29,10 @@ class TestConfig:
         self.config.init(api_key="sk_test_123")
         assert self.config.api_url == DEFAULT_API_URL
 
-    def test_init_allows_custom_api_url(self):
-        """Should allow custom API URL."""
-        self.config.init(api_key="sk_test_123", api_url="http://localhost:3000/api/v1")
+    def test_api_url_settable_directly(self):
+        """api_url can be set directly on config (undocumented escape hatch)."""
+        self.config.init(api_key="sk_test_123")
+        self.config.api_url = "http://localhost:3000/api/v1"
         assert self.config.api_url == "http://localhost:3000/api/v1"
 
     def test_init_sets_default_timeout(self):
@@ -139,7 +140,6 @@ class TestReset:
         config = Config()
         config.init(
             api_key="sk_test_123",
-            api_url="http://custom.url",
             debug=True,
             timeout=15.0,
         )

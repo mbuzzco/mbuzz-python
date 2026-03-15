@@ -90,6 +90,8 @@ def _build_payload(options: TrackOptions, properties: Dict[str, Any]) -> Dict[st
 def _parse_response(response: Optional[Dict[str, Any]], options: TrackOptions) -> TrackResult:
     """Parse API response into TrackResult."""
     if not response or not response.get("events"):
+        if response and response.get("status") == "accepted":
+            return TrackResult(success=True, event_type=options.event_type, visitor_id=options.visitor_id)
         return TrackResult(success=False)
 
     event = response["events"][0]
