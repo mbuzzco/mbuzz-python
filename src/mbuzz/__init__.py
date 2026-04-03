@@ -9,7 +9,7 @@ from .client.track import track, TrackResult
 from .client.identify import identify
 from .client.conversion import conversion, ConversionResult
 
-__version__ = "0.7.0"
+__version__ = "0.7.3"
 
 
 def init(

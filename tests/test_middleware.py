@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from flask import Flask, g
 
-from mbuzz.middleware.flask import init_app
+from mbuzz.middleware.flask import init_app, should_create_session
 from mbuzz.config import config
 from mbuzz.context import get_context, clear_context
 from mbuzz.cookies import VISITOR_COOKIE, VISITOR_MAX_AGE
@@ -342,3 +342,207 @@ class TestFlaskMiddleware:
             assert response.status_code == 500
             # Context should still be cleared
             assert get_context() is None
+
+
+class TestNavigationDetection:
+    """Test should_create_session() — Sec-Fetch-* whitelist + framework blacklist fallback.
+
+    Mirrors the e2e test at sdk_integration_tests/scenarios/navigation_detection_test.rb.
+    """
+
+    def setup_method(self):
+        config.reset()
+        clear_context()
+        self.app = Flask(__name__)
+        self.app.config["TESTING"] = True
+
+        @self.app.route("/")
+        def index():
+            return "OK"
+
+    def teardown_method(self):
+        config.reset()
+        clear_context()
+
+    # -----------------------------------------------------------------
+    # Whitelist path: modern browsers with Sec-Fetch-* headers
+    # -----------------------------------------------------------------
+
+    def test_real_navigation_returns_true(self):
+        """navigate + document = real page navigation → create session."""
+        with self.app.test_request_context(
+            "/", headers={
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            }
+        ):
+            assert should_create_session() is True
+
+    def test_turbo_frame_returns_false(self):
+        """same-origin + empty + Turbo-Frame → sub-request → skip."""
+        with self.app.test_request_context(
+            "/", headers={
+                "Sec-Fetch-Mode": "same-origin",
+                "Sec-Fetch-Dest": "empty",
+                "Turbo-Frame": "content_frame",
+            }
+        ):
+            assert should_create_session() is False
+
+    def test_htmx_returns_false(self):
+        """same-origin + empty + HX-Request → sub-request → skip."""
+        with self.app.test_request_context(
+            "/", headers={
+                "Sec-Fetch-Mode": "same-origin",
+                "Sec-Fetch-Dest": "empty",
+                "HX-Request": "true",
+            }
+        ):
+            assert should_create_session() is False
+
+    def test_fetch_xhr_returns_false(self):
+        """cors + empty → fetch/XHR → skip."""
+        with self.app.test_request_context(
+            "/", headers={
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+            }
+        ):
+            assert should_create_session() is False
+
+    def test_prefetch_returns_false(self):
+        """navigate + document + Sec-Purpose: prefetch → skip."""
+        with self.app.test_request_context(
+            "/", headers={
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Purpose": "prefetch",
+            }
+        ):
+            assert should_create_session() is False
+
+    def test_iframe_returns_false(self):
+        """navigate + iframe → not a document navigation → skip."""
+        with self.app.test_request_context(
+            "/", headers={
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "iframe",
+            }
+        ):
+            assert should_create_session() is False
+
+    # -----------------------------------------------------------------
+    # Blacklist fallback: old browsers without Sec-Fetch-* headers
+    # -----------------------------------------------------------------
+
+    def test_old_browser_no_framework_headers_returns_true(self):
+        """No Sec-Fetch, no framework headers → allow (legacy browser)."""
+        with self.app.test_request_context("/"):
+            assert should_create_session() is True
+
+    def test_old_browser_turbo_frame_returns_false(self):
+        """No Sec-Fetch + Turbo-Frame → blacklist catches it."""
+        with self.app.test_request_context(
+            "/", headers={"Turbo-Frame": "lazy_banner"}
+        ):
+            assert should_create_session() is False
+
+    def test_old_browser_hx_request_returns_false(self):
+        """No Sec-Fetch + HX-Request → blacklist catches it."""
+        with self.app.test_request_context(
+            "/", headers={"HX-Request": "true"}
+        ):
+            assert should_create_session() is False
+
+    def test_old_browser_xhr_returns_false(self):
+        """No Sec-Fetch + X-Requested-With: XMLHttpRequest → blacklist catches it."""
+        with self.app.test_request_context(
+            "/", headers={"X-Requested-With": "XMLHttpRequest"}
+        ):
+            assert should_create_session() is False
+
+    def test_old_browser_unpoly_returns_false(self):
+        """No Sec-Fetch + X-Up-Version → blacklist catches it."""
+        with self.app.test_request_context(
+            "/", headers={"X-Up-Version": "3.0.0"}
+        ):
+            assert should_create_session() is False
+
+    # -----------------------------------------------------------------
+    # Middleware integration: session creation + cookie behavior
+    # -----------------------------------------------------------------
+
+    @patch("mbuzz.middleware.flask.post")
+    def test_navigation_calls_post_sessions(self, mock_post):
+        """Real navigation must fire POST /sessions."""
+        config.init(api_key="sk_test_123")
+        init_app(self.app)
+
+        with self.app.test_client() as client:
+            client.get("/", headers={
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            })
+
+        mock_post.assert_called_once()
+        args = mock_post.call_args
+        assert args[0][0] == "/sessions"
+        payload = args[0][1]
+        assert "session" in payload
+        assert "visitor_id" in payload["session"]
+        assert "session_id" in payload["session"]
+        assert "device_fingerprint" in payload["session"]
+        assert len(payload["session"]["device_fingerprint"]) == 32
+
+    @patch("mbuzz.middleware.flask.post")
+    def test_turbo_frame_does_not_call_post(self, mock_post):
+        """Turbo frame request must NOT fire POST /sessions."""
+        config.init(api_key="sk_test_123")
+        init_app(self.app)
+
+        with self.app.test_client() as client:
+            client.get("/", headers={
+                "Sec-Fetch-Mode": "same-origin",
+                "Sec-Fetch-Dest": "empty",
+                "Turbo-Frame": "banner",
+            })
+
+        mock_post.assert_not_called()
+
+    @patch("mbuzz.middleware.flask.post")
+    def test_visitor_cookie_set_on_sub_request(self, mock_post):
+        """Visitor cookie must be set even when session creation is skipped."""
+        config.init(api_key="sk_test_123")
+        init_app(self.app)
+
+        with self.app.test_client() as client:
+            response = client.get("/", headers={
+                "Sec-Fetch-Mode": "same-origin",
+                "Sec-Fetch-Dest": "empty",
+                "Turbo-Frame": "banner",
+            })
+
+            cookies = response.headers.getlist("Set-Cookie")
+            visitor_cookie = next(
+                (c for c in cookies if VISITOR_COOKIE in c), None
+            )
+            assert visitor_cookie is not None
+
+    @patch("mbuzz.middleware.flask.post")
+    def test_response_always_succeeds(self, mock_post):
+        """Request completes normally regardless of navigation detection outcome."""
+        config.init(api_key="sk_test_123")
+        init_app(self.app)
+
+        with self.app.test_client() as client:
+            nav = client.get("/", headers={
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            })
+            sub = client.get("/", headers={
+                "Sec-Fetch-Mode": "same-origin",
+                "Sec-Fetch-Dest": "empty",
+            })
+
+            assert nav.status_code == 200
+            assert sub.status_code == 200
