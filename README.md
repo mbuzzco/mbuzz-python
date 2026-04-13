@@ -177,13 +177,11 @@ mbuzz never raises exceptions. All methods fail silently and log errors in debug
 
 Client-side tracking loses 30–40% of marketing data to ad blockers, iOS tracking protections, and 7-day cookie caps. Server-side attribution runs inside your application, where requests flow through your own domain as first-party data — so you see the full customer journey.
 
-Full explainer: [mbuzz.co/academy/server-side-vs-client-side](https://mbuzz.co/academy/server-side-vs-client-side)
+Full explainer: [mbuzz.co/articles/server-side-vs-client-side-tracking](https://mbuzz.co/articles/server-side-vs-client-side-tracking)
 
-## Attribution DSL
+## Attribution Models
 
-mbuzz ships a SQL-like Attribution DSL for defining custom attribution models. Compare first-touch, last-touch, linear, time-decay, position-based, Markov, Shapley, and data-driven models side-by-side, or define your own.
-
-Docs: [mbuzz.co/docs/dsl](https://mbuzz.co/docs/dsl)
+mbuzz runs 8 attribution models side-by-side out of the box — first-touch, last-touch, linear, time-decay, position-based, Markov, Shapley, and data-driven — so you can see how much each model disagrees about which channel deserves credit.
 
 ## Requirements
 
@@ -193,8 +191,7 @@ Docs: [mbuzz.co/docs/dsl](https://mbuzz.co/docs/dsl)
 
 ## Links
 
-- [Documentation](https://mbuzz.co/docs)
-- [Python SDK docs](https://mbuzz.co/docs/sdk/python)
+- [Getting started](https://mbuzz.co/docs/getting-started)
 - [Dashboard](https://mbuzz.co/dashboard)
 - [Changelog](CHANGELOG.md)
 
