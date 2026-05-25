@@ -1,6 +1,7 @@
 """Conversion request for tracking conversions."""
 # NOTE: Session ID removed in 0.7.0 - server handles session resolution
 
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
 
@@ -45,11 +46,23 @@ def conversion(
         properties: Additional conversion properties
         ip: Client IP address for server-side session resolution
         user_agent: Client user agent for server-side session resolution
-        identifier: Cross-device identifier (email, user_id, etc.)
+        identifier: DEPRECATED — pass the email/external ID as ``user_id`` instead.
+            The backend ``/conversions`` endpoint has never permitted this field
+            and the events endpoint treats ``identifier.email`` exactly as
+            ``user_id``. Will be removed in a future major release.
 
     Returns:
         ConversionResult with success status, conversion ID, and attribution data
     """
+    if identifier is not None:
+        warnings.warn(
+            "The `identifier` parameter on conversion() is deprecated and ignored "
+            "by the backend on /conversions. Pass the email or external ID as "
+            "`user_id` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     ctx = get_context()
 
     visitor_id = visitor_id or (ctx.visitor_id if ctx else None)
