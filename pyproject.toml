@@ -46,7 +46,11 @@ dev = [
     "flask>=2.0",
     "django>=3.2",
     "starlette",
-    "httpx2",
+    # starlette's TestClient needs an httpx; which one depends on the starlette
+    # version resolved for the Python in use — httpx2 on new, httpx on 3.9.
+    # Declare both so CI matches a developer's machine on every version.
+    "httpx",
+    "httpx2; python_version >= '3.10'",
 ]
 
 [tool.hatch.build.targets.wheel]
