@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.0 (2026-09-08)
+## 0.10.0 (2026-09-08)
 
 ### BREAKING — the page snippet is now required
 

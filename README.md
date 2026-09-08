@@ -161,7 +161,7 @@ The core `mbuzz.event`, `mbuzz.conversion`, and `mbuzz.identify` functions are f
 
 ## Full-page caching — the snippet below is REQUIRED
 
-**Add this to your base template or nothing is tracked.** Since 0.9.0 a page response never
+**Add this to your base template or nothing is tracked.** Since 0.10.0 a page response never
 sets the visitor cookie: only `POST /_mbuzz/session` mints, and the snippet is what calls it.
 
 A page response can be stored by a full-page cache (Cloudflare, Varnish, nginx, a CDN) and
