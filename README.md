@@ -159,18 +159,22 @@ Install with `pip install mbuzz[fastapi]`.
 
 The core `mbuzz.event`, `mbuzz.conversion`, and `mbuzz.identify` functions are framework-agnostic. You can call them from any Python web app or background job.
 
-## Full-page caching
+## Full-page caching — the snippet below is REQUIRED
 
-If pages are served from a full-page cache (Cloudflare, Varnish, nginx, a CDN), the cache
-answers the request **without entering your application**, so the middleware never runs, no
-visitor cookie is set, and every later event is dropped for having no one to attribute it to.
-The page renders perfectly and nothing is logged — the failure is silent.
+**Add this to your base template or nothing is tracked.** Since 0.9.0 a page response never
+sets the visitor cookie: only `POST /_mbuzz/session` mints, and the snippet is what calls it.
 
-The middleware already fixes this, on all three frameworks. It answers
-`POST /_mbuzz/session`, a path caches don't store, and the **server** sets the cookie on that
-response. There is nothing extra to mount.
+A page response can be stored by a full-page cache (Cloudflare, Varnish, nginx, a CDN) and
+replayed to every visitor. A `Set-Cookie` sitting in that cache hands everyone the *first*
+visitor's id, so unrelated people merge into one journey — corruption rather than loss, since
+every row exists and is simply attributed to the wrong person. Minting only on a response no
+cache stores is the only way to prevent it.
 
-Then call it once per page, from your base template:
+The same endpoint solves the original problem too: a cached page never enters your application,
+so the middleware cannot run — but this one request always reaches it.
+
+The middleware answers `POST /_mbuzz/session` on all three frameworks. There is nothing extra
+to mount. Call it once per page, from your base template:
 
 ```html
 <script>

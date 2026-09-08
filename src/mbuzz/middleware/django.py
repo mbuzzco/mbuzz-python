@@ -75,7 +75,15 @@ class MbuzzMiddleware:
         if config.should_skip_path(request.path):
             return self.get_response(request)
 
-        visitor_id = _get_or_create_visitor_id(request)
+        # Only a cookie the browser already holds. This response may be stored
+        # by a full-page cache and replayed to everyone, so minting here would
+        # hand every later visitor the same id — see MINT_ON_PAGE_RESPONSE in
+        # session_endpoint. A first-time visitor is established a moment later
+        # by the session endpoint, whose response no cache stores.
+        visitor_id = request.COOKIES.get(VISITOR_COOKIE)
+        if not visitor_id:
+            return self.get_response(request)
+
         ip = _get_client_ip(request)
         user_agent = _get_user_agent(request)
 
@@ -93,12 +101,9 @@ class MbuzzMiddleware:
             )
 
         try:
-            response = self.get_response(request)
+            return self.get_response(request)
         finally:
             clear_context()
-
-        _set_visitor_cookie(response, visitor_id, request.is_secure())
-        return response
 
     def _handle_session_request(self, request: HttpRequest) -> HttpResponse:
         """Answer the session request: mint the cookie, record the session

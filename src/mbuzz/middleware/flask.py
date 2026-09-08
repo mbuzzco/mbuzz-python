@@ -59,7 +59,15 @@ def init_app(app: Flask) -> None:
         if config.should_skip_path(request.path):
             return
 
-        visitor_id = _get_or_create_visitor_id()
+        # Only a cookie the browser already holds. This response may be stored
+        # by a full-page cache and replayed to everyone, so minting here would
+        # hand every later visitor the same id — see MINT_ON_PAGE_RESPONSE. A
+        # first-time visitor is established a moment later by the session
+        # endpoint, whose response no cache stores.
+        visitor_id = request.cookies.get(VISITOR_COOKIE)
+        if not visitor_id:
+            return
+
         ip = _get_client_ip()
         user_agent = _get_user_agent()
 
@@ -73,14 +81,6 @@ def init_app(app: Flask) -> None:
                 ip,
                 user_agent,
             )
-
-    @app.after_request
-    def after_request(response: Response) -> Response:
-        if not hasattr(g, "mbuzz_visitor_id"):
-            return response
-
-        _set_cookies(response)
-        return response
 
     @app.teardown_request
     def teardown_request(exception=None):
@@ -150,20 +150,5 @@ def _set_request_context(visitor_id: str, ip: str, user_agent: str) -> None:
 
 
 def _store_in_g(visitor_id: str) -> None:
-    """Store tracking IDs in Flask g object for after_request."""
+    """Expose the visitor to the app for the rest of the request."""
     g.mbuzz_visitor_id = visitor_id
-    g.mbuzz_is_new_visitor = VISITOR_COOKIE not in request.cookies
-
-
-def _set_cookies(response: Response) -> None:
-    """Set visitor cookie on response."""
-    secure = request.is_secure
-
-    response.set_cookie(
-        VISITOR_COOKIE,
-        g.mbuzz_visitor_id,
-        max_age=VISITOR_MAX_AGE,
-        httponly=True,
-        samesite="Lax",
-        secure=secure,
-    )

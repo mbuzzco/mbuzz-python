@@ -2,6 +2,24 @@
 
 ## 0.9.0 (2026-09-08)
 
+### BREAKING — the page snippet is now required
+
+**A page response no longer sets the visitor cookie.** Only `POST /_mbuzz/session`
+mints, and the inline snippet in the README's "Full-page caching" section is what
+calls it. **Upgrading without adding that snippet stops tracking entirely** — no
+cookie is ever minted, so no visitor exists and every event is dropped.
+
+The reason: a page response can be stored by a full-page cache and replayed to
+every visitor. A `Set-Cookie` sitting in that cache hands everyone the first
+visitor's id, merging unrelated people into a single journey — corruption rather
+than loss, since every row still exists and is simply attributed to the wrong
+person. Nothing looks missing, which is what makes it dangerous.
+
+Verified against nginx `proxy_cache` in `sdk_integration_tests/scenarios/page_cache_test.rb`:
+before this change three visitors on a cached page received one id; after it,
+three. The WordPress plugin reached the same conclusion first
+(`CookieBootstrap::CONTEXT_PAGE`).
+
 ### Fixed
 
 - **Attribution behind a full-page cache.** A cached page is served without entering the

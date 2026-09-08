@@ -33,6 +33,16 @@ class TestFlaskMiddleware:
         config.reset()
         clear_context()
 
+    # The page path no longer mints (a cached Set-Cookie would collapse every
+    # visitor into one id), so a request that needs a visitor must present the
+    # cookie the session endpoint gave the browser.
+    KNOWN_VISITOR = "a1b2c3d4" * 8
+
+    def _client_with_visitor(self):
+        client = self.app.test_client()
+        client.set_cookie(VISITOR_COOKIE, self.KNOWN_VISITOR)
+        return client
+
     def test_does_nothing_when_not_initialized(self):
         """Should skip tracking when SDK not initialized."""
         init_app(self.app)
@@ -84,38 +94,42 @@ class TestFlaskMiddleware:
             assert response.status_code == 200
             assert VISITOR_COOKIE not in response.headers.get("Set-Cookie", "")
 
-    def test_creates_visitor_id_for_new_visitor(self):
-        """Should create visitor ID for new visitor."""
+    def test_never_mints_on_a_page_response(self):
+        """A page response may be cached and replayed to every visitor.
+
+        A Set-Cookie stored in that cache hands everyone the same id and merges
+        unrelated people into one journey — corruption, not loss, and far harder
+        to notice than a missing row. Only the session endpoint mints, because
+        no cache stores a POST.
+        """
         config.init(api_key="sk_test_123")
         init_app(self.app)
 
         with self.app.test_client() as client:
             response = client.get("/")
 
-            cookies = response.headers.getlist("Set-Cookie")
-            visitor_cookie = next(
-                (c for c in cookies if VISITOR_COOKIE in c), None
-            )
+            assert VISITOR_COOKIE not in response.headers.get("Set-Cookie", "")
 
-            assert visitor_cookie is not None
-            assert VISITOR_COOKIE in visitor_cookie
+    def test_tracks_nothing_for_a_visitor_it_has_never_seen(self):
+        """Without a cookie there is nobody to attribute to, so nothing is sent.
 
-    def test_only_sets_visitor_cookie(self):
-        """Should only set visitor cookie (no session cookie)."""
+        The session endpoint establishes the visitor a moment later; this
+        request simply predates them.
+        """
         config.init(api_key="sk_test_123")
         init_app(self.app)
 
         with self.app.test_client() as client:
-            response = client.get("/")
+            with patch("mbuzz.session_endpoint.post") as mock_post:
+                client.get(
+                    "/",
+                    headers={"Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"},
+                )
 
-            cookies = response.headers.getlist("Set-Cookie")
-            # Should only have one cookie (visitor)
-            mbuzz_cookies = [c for c in cookies if "_mbuzz_" in c]
-            assert len(mbuzz_cookies) == 1
-            assert VISITOR_COOKIE in mbuzz_cookies[0]
+            assert not mock_post.called
 
-    def test_reuses_visitor_id_from_cookie(self):
-        """Should reuse existing visitor ID from cookie."""
+    def test_uses_the_visitor_id_the_browser_already_holds(self):
+        """A cookie the browser presents is the visitor, and is used as-is."""
         config.init(api_key="sk_test_123")
         init_app(self.app)
 
@@ -123,14 +137,14 @@ class TestFlaskMiddleware:
 
         with self.app.test_client() as client:
             client.set_cookie(VISITOR_COOKIE, existing_vid)
-            response = client.get("/")
 
-            cookies = response.headers.getlist("Set-Cookie")
-            visitor_cookie = next(
-                (c for c in cookies if VISITOR_COOKIE in c), None
-            )
+            with patch("mbuzz.session_endpoint.post") as mock_post:
+                client.get(
+                    "/",
+                    headers={"Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"},
+                )
 
-            assert existing_vid in visitor_cookie
+            assert mock_post.call_args[0][1]["session"]["visitor_id"] == existing_vid
 
     def test_sets_context_during_request(self):
         """Should set request context during request handling."""
@@ -149,7 +163,7 @@ class TestFlaskMiddleware:
                 captured_context["url"] = ctx.url
             return "captured"
 
-        with self.app.test_client() as client:
+        with self._client_with_visitor() as client:
             client.get("/capture")
 
             assert "visitor_id" in captured_context
@@ -182,7 +196,7 @@ class TestFlaskMiddleware:
                 captured_url["url"] = ctx.url
             return "page"
 
-        with self.app.test_client() as client:
+        with self._client_with_visitor() as client:
             client.get("/page")
 
             assert "/page" in captured_url.get("url", "")
@@ -201,55 +215,27 @@ class TestFlaskMiddleware:
                 captured_referrer["referrer"] = ctx.referrer
             return "landing"
 
-        with self.app.test_client() as client:
+        with self._client_with_visitor() as client:
             client.get("/landing", headers={"Referer": "https://google.com"})
 
             assert captured_referrer.get("referrer") == "https://google.com"
 
-    def test_sets_visitor_cookie_max_age(self):
-        """Should set visitor cookie with correct max age."""
+    def test_sets_no_cookie_of_any_kind_on_a_page(self):
+        """The cookie's attributes are the session endpoint's business now.
+
+        Max-Age, HttpOnly and SameSite are asserted in test_session_endpoint.py,
+        on the response that actually carries them. What matters here is that a
+        page response carries none.
+        """
         config.init(api_key="sk_test_123")
         init_app(self.app)
 
-        with self.app.test_client() as client:
+        with self._client_with_visitor() as client:
             response = client.get("/")
 
-            cookies = response.headers.getlist("Set-Cookie")
-            visitor_cookie = next(
-                (c for c in cookies if VISITOR_COOKIE in c), None
-            )
-
-            assert f"Max-Age={VISITOR_MAX_AGE}" in visitor_cookie
-
-    def test_sets_httponly_on_cookies(self):
-        """Should set HttpOnly flag on cookies."""
-        config.init(api_key="sk_test_123")
-        init_app(self.app)
-
-        with self.app.test_client() as client:
-            response = client.get("/")
-
-            cookies = response.headers.getlist("Set-Cookie")
-            visitor_cookie = next(
-                (c for c in cookies if VISITOR_COOKIE in c), None
-            )
-
-            assert "HttpOnly" in visitor_cookie
-
-    def test_sets_samesite_lax_on_cookies(self):
-        """Should set SameSite=Lax on cookies."""
-        config.init(api_key="sk_test_123")
-        init_app(self.app)
-
-        with self.app.test_client() as client:
-            response = client.get("/")
-
-            cookies = response.headers.getlist("Set-Cookie")
-            visitor_cookie = next(
-                (c for c in cookies if VISITOR_COOKIE in c), None
-            )
-
-            assert "SameSite=Lax" in visitor_cookie
+            assert not [
+                c for c in response.headers.getlist("Set-Cookie") if "_mbuzz_" in c
+            ]
 
     def test_generates_64_char_visitor_id(self):
         """Should generate 64-character visitor ID."""
@@ -265,7 +251,7 @@ class TestFlaskMiddleware:
                 captured["visitor_id"] = ctx.visitor_id
             return "ok"
 
-        with self.app.test_client() as client:
+        with self._client_with_visitor() as client:
             client.get("/check")
 
             assert len(captured.get("visitor_id", "")) == 64
@@ -284,7 +270,7 @@ class TestFlaskMiddleware:
                 captured["ip"] = ctx.ip
             return "ok"
 
-        with self.app.test_client() as client:
+        with self._client_with_visitor() as client:
             client.get("/check-ip", headers={"X-Forwarded-For": "203.0.113.50, 198.51.100.1"})
 
             assert captured.get("ip") == "203.0.113.50"
@@ -303,7 +289,7 @@ class TestFlaskMiddleware:
                 captured["user_agent"] = ctx.user_agent
             return "ok"
 
-        with self.app.test_client() as client:
+        with self._client_with_visitor() as client:
             client.get("/check-ua", headers={"User-Agent": "Mozilla/5.0 Test"})
 
             assert captured.get("user_agent") == "Mozilla/5.0 Test"
@@ -479,6 +465,7 @@ class TestNavigationDetection:
         init_app(self.app)
 
         with self.app.test_client() as client:
+            client.set_cookie(VISITOR_COOKIE, "e5f6a7b8" * 8)
             client.get("/", headers={
                 "Sec-Fetch-Mode": "navigate",
                 "Sec-Fetch-Dest": "document",
@@ -510,23 +497,26 @@ class TestNavigationDetection:
         mock_post.assert_not_called()
 
     @patch("mbuzz.session_endpoint.post")
-    def test_visitor_cookie_set_on_sub_request(self, mock_post):
-        """Visitor cookie must be set even when session creation is skipped."""
+    def test_sub_request_never_re_sets_the_cookie(self, mock_post):
+        """A sub-request response is as cacheable as any other, so it mints nothing.
+
+        It used to re-set the visitor cookie here, which put a Set-Cookie on a
+        response a cache could store and replay to everyone.
+        """
         config.init(api_key="sk_test_123")
         init_app(self.app)
 
         with self.app.test_client() as client:
+            client.set_cookie(VISITOR_COOKIE, "e5f6a7b8" * 8)
             response = client.get("/", headers={
                 "Sec-Fetch-Mode": "same-origin",
                 "Sec-Fetch-Dest": "empty",
                 "Turbo-Frame": "banner",
             })
 
-            cookies = response.headers.getlist("Set-Cookie")
-            visitor_cookie = next(
-                (c for c in cookies if VISITOR_COOKIE in c), None
-            )
-            assert visitor_cookie is not None
+            assert not [
+                c for c in response.headers.getlist("Set-Cookie") if "_mbuzz_" in c
+            ]
 
     @patch("mbuzz.session_endpoint.post")
     def test_response_always_succeeds(self, mock_post):

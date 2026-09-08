@@ -29,6 +29,17 @@ NO_CONTENT_STATUS = 204
 NO_STORE = "no-store, no-cache, must-revalidate, private"
 
 
+# A page response may be stored by a full-page cache and replayed to every
+# visitor, so it must NEVER carry a Set-Cookie for the visitor id: a cached one
+# hands everyone the same id and merges unrelated people into a single journey.
+# That is corruption rather than loss — every row exists, each is simply
+# attributed to the wrong person, and nothing looks missing.
+#
+# Only the session endpoint mints, because no cache stores a POST. This mirrors
+# CookieBootstrap::CONTEXT_PAGE in the WordPress plugin, which got here first.
+MINT_ON_PAGE_RESPONSE = False
+
+
 def is_session_request(method: str, path: str) -> bool:
     """POST only: a GET is cacheable by an intermediary, which would
     reintroduce the very bug this endpoint exists to fix."""

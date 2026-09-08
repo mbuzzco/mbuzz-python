@@ -52,7 +52,10 @@ class TestDjangoMiddleware:
         assert response.status_code == 200
         assert VISITOR_COOKIE not in response.cookies
 
-    def test_mints_a_visitor_cookie_on_a_page_view(self):
+    def test_never_mints_on_a_page_response(self):
+        """A page response may be cached and replayed to every visitor, so a
+        Set-Cookie on it would hand everyone the same id. Only the session
+        endpoint mints — no cache stores a POST."""
         config.init(api_key="sk_test_123")
 
         request = self.factory.get(
@@ -61,8 +64,7 @@ class TestDjangoMiddleware:
         with patch("mbuzz.session_endpoint.post"):
             response = _middleware()(request)
 
-        assert VISITOR_COOKIE in response.cookies
-        assert response.cookies[VISITOR_COOKIE]["httponly"]
+        assert VISITOR_COOKIE not in response.cookies
 
     def test_reuses_an_existing_visitor_cookie(self):
         config.init(api_key="sk_test_123")
