@@ -1,0 +1,62 @@
+# Publishes to PyPI via Trusted Publishing (OIDC).
+#
+# No token is stored anywhere: GitHub proves this workflow's identity to PyPI
+# directly, so there is nothing to expire, mis-scope or lose. Configure the
+# trusted publisher once at pypi.org → the project → Settings → Publishing,
+# naming this repository and this workflow file (publish.yml).
+#
+# Release by pushing a tag that matches the version in pyproject.toml:
+#
+#     git tag v0.9.0 && git push origin v0.9.0
+#
+# Then verify against the registry, never the workflow's own success:
+#
+#     curl -s https://pypi.org/pypi/mbuzz/json | python3 -c \
+#       "import json,sys; print(json.load(sys.stdin)['info']['version'])"
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    # Required for Trusted Publishing — without it PyPI has no identity to verify.
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install
+        run: pip install -e ".[dev]" build
+
+      # A tag that disagrees with pyproject.toml would publish a version nobody
+      # asked for, under a name nobody can find. Fail before the upload.
+      - name: The tag must match the packaged version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          packaged=$(python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$tag" != "$packaged" ]; then
+            echo "tag $tag does not match pyproject.toml version $packaged"
+            exit 1
+          fi
+
+      - name: Test
+        run: python -m pytest -q
+
+      - name: Build
+        run: python -m build
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
