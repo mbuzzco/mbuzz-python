@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.9.0 (2026-09-08)
+
+### Fixed
+
+- **Attribution behind a full-page cache.** A cached page is served without entering the
+  application, so the middleware never ran, no visitor cookie was minted, and every later event and
+  conversion was dropped for having no visitor — silently, with no HTTP call and nothing logged.
+  The middleware now answers `POST /_mbuzz/session`, a path caches don't store, and the server sets
+  the cookie on that response. The id is never created or read in JavaScript, so it stays
+  `HttpOnly` and keeps its full two-year life. Add the inline snippet from the README's
+  "Full-page caching" section to your base template.
+
+- **A dropped call now says why.** `event()` and `conversion()` returned failure with no request and
+  no log when no `visitor_id` and no `user_id` could be resolved — a dropped conversion and a
+  delivered one looked identical from the caller's side. Both now log a warning naming the call, the
+  reason, and the fix. Not behind the debug flag: the customers who hit this are the ones not
+  running in debug.
+
+- **`__version__` said `0.8.2` while the package was `0.8.3`.** Both now track the release.
+
+### Added
+
+- **Django middleware** (`mbuzz.middleware.django.MbuzzMiddleware`) and **FastAPI/Starlette
+  middleware** (`mbuzz.middleware.fastapi.MbuzzMiddleware`). Both frameworks were advertised in the
+  package metadata but only Flask middleware shipped, so those users got no cookie minting at all —
+  a 100% silent-drop path unrelated to caching. Each includes the session endpoint above.
+
+- The `django` and `flask` extras now actually declare their framework, instead of being empty.
+
 ## 0.8.3 (2026-05-25)
 
 ### Deprecated

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mbuzz"
-version = "0.8.3"
+version = "0.9.0"
 description = "Multi-touch attribution SDK for Python"
 readme = "README.md"
 license = "MIT"
@@ -34,10 +34,20 @@ Documentation = "https://mbuzz.co/docs/getting-started"
 Repository = "https://github.com/mbuzzco/mbuzz-python"
 
 [project.optional-dependencies]
-django = []
-flask = []
+django = ["django>=3.2"]
+flask = ["flask>=2.0"]
 fastapi = ["starlette"]
-dev = ["pytest", "pytest-cov", "black", "ruff", "mypy"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+    "ruff",
+    "mypy",
+    "flask>=2.0",
+    "django>=3.2",
+    "starlette",
+    "httpx2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mbuzz"]

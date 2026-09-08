@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Union
 
 from ..api import post_with_response
 from ..context import get_context
+from ..dropped_call import warn_missing_identity
 
 
 @dataclass
@@ -71,6 +72,7 @@ def conversion(
     user_agent = user_agent or (ctx.user_agent if ctx else None)
 
     if not visitor_id and not user_id:
+        warn_missing_identity("conversion", conversion_type)
         return ConversionResult(success=False)
 
     payload: Dict[str, Any] = {

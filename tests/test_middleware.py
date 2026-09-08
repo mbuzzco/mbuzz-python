@@ -472,7 +472,7 @@ class TestNavigationDetection:
     # Middleware integration: session creation + cookie behavior
     # -----------------------------------------------------------------
 
-    @patch("mbuzz.middleware.flask.post")
+    @patch("mbuzz.session_endpoint.post")
     def test_navigation_calls_post_sessions(self, mock_post):
         """Real navigation must fire POST /sessions."""
         config.init(api_key="sk_test_123")
@@ -494,7 +494,7 @@ class TestNavigationDetection:
         assert "device_fingerprint" in payload["session"]
         assert len(payload["session"]["device_fingerprint"]) == 32
 
-    @patch("mbuzz.middleware.flask.post")
+    @patch("mbuzz.session_endpoint.post")
     def test_turbo_frame_does_not_call_post(self, mock_post):
         """Turbo frame request must NOT fire POST /sessions."""
         config.init(api_key="sk_test_123")
@@ -509,7 +509,7 @@ class TestNavigationDetection:
 
         mock_post.assert_not_called()
 
-    @patch("mbuzz.middleware.flask.post")
+    @patch("mbuzz.session_endpoint.post")
     def test_visitor_cookie_set_on_sub_request(self, mock_post):
         """Visitor cookie must be set even when session creation is skipped."""
         config.init(api_key="sk_test_123")
@@ -528,7 +528,7 @@ class TestNavigationDetection:
             )
             assert visitor_cookie is not None
 
-    @patch("mbuzz.middleware.flask.post")
+    @patch("mbuzz.session_endpoint.post")
     def test_response_always_succeeds(self, mock_post):
         """Request completes normally regardless of navigation detection outcome."""
         config.init(api_key="sk_test_123")

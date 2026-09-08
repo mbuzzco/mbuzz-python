@@ -1,18 +1,17 @@
 """Flask middleware for mbuzz tracking."""
 # NOTE: Session cookie removed in 0.7.0 - server handles session resolution
 
-import threading
-import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from flask import Flask, Response, g, request
 
-from flask import Flask, request, g, Response
-
-from ..api import post
 from ..config import config
-from ..context import RequestContext, set_context, clear_context
+from ..context import RequestContext, clear_context, set_context
 from ..cookies import VISITOR_COOKIE, VISITOR_MAX_AGE
-from ..utils.fingerprint import device_fingerprint
+from ..session_endpoint import (
+    NO_CONTENT_STATUS,
+    NO_STORE,
+    create_session_async,
+    is_session_request,
+)
 from ..utils.identifier import generate_id
 
 
@@ -46,7 +45,18 @@ def init_app(app: Flask) -> None:
 
     @app.before_request
     def before_request():
-        if _should_skip():
+        if not config._initialized or not config.enabled:
+            return
+
+        # Checked ahead of the skip_paths check and the navigation gate below,
+        # both deliberately. A customer's own skip_paths must not swallow the one
+        # request that still reaches the app on a cached page, and a fetch()
+        # can never satisfy sec-fetch-mode: navigate — leaving that gate in
+        # front would mint the cookie and then silently skip the session.
+        if is_session_request(request.method, request.path):
+            return _handle_session_request()
+
+        if config.should_skip_path(request.path):
             return
 
         visitor_id = _get_or_create_visitor_id()
@@ -57,8 +67,11 @@ def init_app(app: Flask) -> None:
         _store_in_g(visitor_id)
 
         if should_create_session():
-            _create_session_async(
-                visitor_id, request.url, request.referrer, ip, user_agent
+            create_session_async(
+                visitor_id,
+                {"url": request.url, "referrer": request.referrer},
+                ip,
+                user_agent,
             )
 
     @app.after_request
@@ -74,13 +87,35 @@ def init_app(app: Flask) -> None:
         clear_context()
 
 
-def _should_skip() -> bool:
-    """Check if request should skip tracking."""
-    if not config._initialized or not config.enabled:
-        return True
-    if config.should_skip_path(request.path):
-        return True
-    return False
+def _handle_session_request() -> Response:
+    """Answer the session request: mint the cookie, record the session against
+    the page, and return an empty, uncacheable 204."""
+    visitor_id = _get_or_create_visitor_id()
+
+    create_session_async(
+        visitor_id,
+        request.get_json(silent=True),
+        _get_client_ip(),
+        _get_user_agent(),
+    )
+
+    return _session_response(visitor_id)
+
+
+def _session_response(visitor_id: str) -> Response:
+    """The endpoint's response: no body, one Set-Cookie, never cacheable."""
+    response = Response(status=NO_CONTENT_STATUS)
+    response.headers["Cache-Control"] = NO_STORE
+
+    response.set_cookie(
+        VISITOR_COOKIE,
+        visitor_id,
+        max_age=VISITOR_MAX_AGE,
+        httponly=True,
+        samesite="Lax",
+        secure=request.is_secure,
+    )
+    return response
 
 
 def _get_or_create_visitor_id() -> str:
@@ -118,35 +153,6 @@ def _store_in_g(visitor_id: str) -> None:
     """Store tracking IDs in Flask g object for after_request."""
     g.mbuzz_visitor_id = visitor_id
     g.mbuzz_is_new_visitor = VISITOR_COOKIE not in request.cookies
-
-
-def _create_session_async(
-    visitor_id: str,
-    url: str,
-    referrer: Optional[str],
-    ip: str,
-    user_agent: str,
-) -> None:
-    """Fire-and-forget session creation via background thread.
-
-    All data is captured before the thread starts — no request-object
-    access inside the thread (it would be invalid after the response).
-    """
-    payload = {
-        "session": {
-            "visitor_id": visitor_id,
-            "session_id": str(uuid.uuid4()),
-            "url": url,
-            "referrer": referrer,
-            "device_fingerprint": device_fingerprint(ip, user_agent),
-            "user_agent": user_agent,
-            "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        }
-    }
-
-    threading.Thread(
-        target=post, args=("/sessions", payload), daemon=True
-    ).start()
 
 
 def _set_cookies(response: Response) -> None:

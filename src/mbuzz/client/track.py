@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 from ..api import post_with_response
 from ..context import get_context
+from ..dropped_call import warn_missing_identity
 
 
 @dataclass
@@ -139,6 +140,7 @@ def track(
     options = _resolve_ids(options)
 
     if not _validate(options):
+        warn_missing_identity("event", options.event_type)
         return TrackResult(success=False)
 
     enriched_props = _enrich_properties(options)

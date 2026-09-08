@@ -118,11 +118,82 @@ mbuzz.visitor_id()   # Current visitor ID (from cookie)
 mbuzz.user_id()      # Current user ID (if identify() was called)
 ```
 
-## Django / FastAPI / Other Frameworks
+## Django Integration
+
+```python
+# settings.py
+MIDDLEWARE = [
+    # ...
+    "mbuzz.middleware.django.MbuzzMiddleware",
+]
+```
+
+Initialise the SDK once at startup — in your `AppConfig.ready()` or `settings.py`:
+
+```python
+import mbuzz
+
+mbuzz.init(api_key="sk_live_...")
+```
+
+Install with `pip install mbuzz[django]`.
+
+## FastAPI Integration
+
+Works with any Starlette app; FastAPI is Starlette underneath.
+
+```python
+from fastapi import FastAPI
+import mbuzz
+from mbuzz.middleware.fastapi import MbuzzMiddleware
+
+app = FastAPI()
+
+mbuzz.init(api_key="sk_live_...")
+app.add_middleware(MbuzzMiddleware)
+```
+
+Install with `pip install mbuzz[fastapi]`.
+
+## Other Frameworks
 
 The core `mbuzz.event`, `mbuzz.conversion`, and `mbuzz.identify` functions are framework-agnostic. You can call them from any Python web app or background job.
 
-For framework-specific middleware contributions, see [Contributing](#contributing) below.
+## Full-page caching
+
+If pages are served from a full-page cache (Cloudflare, Varnish, nginx, a CDN), the cache
+answers the request **without entering your application**, so the middleware never runs, no
+visitor cookie is set, and every later event is dropped for having no one to attribute it to.
+The page renders perfectly and nothing is logged — the failure is silent.
+
+The middleware already fixes this, on all three frameworks. It answers
+`POST /_mbuzz/session`, a path caches don't store, and the **server** sets the cookie on that
+response. There is nothing extra to mount.
+
+Then call it once per page, from your base template:
+
+```html
+<script>
+  fetch('/_mbuzz/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: location.href, referrer: document.referrer || '' }),
+    credentials: 'same-origin',
+    keepalive: true
+  }).catch(function () {});
+</script>
+```
+
+Two things to keep as they are:
+
+- **Inline the script, don't load it as a file.** Asset optimisers delay external scripts until
+  the visitor first interacts. A visitor who lands and converts without clicking anything first
+  would never be established.
+- **`credentials: 'same-origin'` is required**, or the cookie never comes back.
+
+The visitor id is never created or read in JavaScript. It stays `HttpOnly` and server-set, which
+is what preserves its full two-year life — a cookie written by `document.cookie` is capped at
+7 days under Safari's ITP, and 24 hours after an ad click.
 
 ## Background Jobs
 
@@ -187,7 +258,7 @@ mbuzz runs 8 attribution models side-by-side out of the box — first-touch, las
 
 - Python 3.9+
 - No required dependencies for the core SDK
-- `flask` only required if using the Flask middleware
+- `flask`, `django` or `starlette` only required for that framework's middleware
 
 ## Links
 
