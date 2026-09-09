@@ -1,9 +1,15 @@
-# Publishes to PyPI via Trusted Publishing (OIDC).
+# Publishes to PyPI with an API token held in the PYPI_API_TOKEN secret.
 #
-# No token is stored anywhere: GitHub proves this workflow's identity to PyPI
-# directly, so there is nothing to expire, mis-scope or lose. Configure the
-# trusted publisher once at pypi.org → the project → Settings → Publishing,
-# naming this repository and this workflow file (publish.yml).
+# Trusted Publishing (OIDC) is the better design — no credential to expire,
+# mis-scope or lose — and this workflow used it first. It was refused with
+# `invalid-publisher` on every attempt: PyPI had no publisher matching the
+# claims GitHub presents (repo mbuzzco/mbuzz-python, workflow publish.yml,
+# environment pypi). Nothing uploads on that failure, so 0.10.0 sat tagged and
+# unpublished for a day while the release commit said otherwise.
+#
+# The token is the way back to shipping, not the destination. Once the trusted
+# publisher is configured on PyPI, restore the OIDC form: drop `password:`
+# below, restore `permissions: id-token: write`, and delete the secret.
 #
 # Release by pushing a tag that matches the version in pyproject.toml:
 #
@@ -25,10 +31,6 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: pypi
-
-    # Required for Trusted Publishing — without it PyPI has no identity to verify.
-    permissions:
-      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -60,3 +62,5 @@ jobs:
 
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
