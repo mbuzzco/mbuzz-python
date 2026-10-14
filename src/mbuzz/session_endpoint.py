@@ -51,24 +51,31 @@ def build_session_payload(
     body: Optional[Dict[str, Any]],
     ip: str,
     user_agent: str,
+    fbp: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build the session payload for a page that called the endpoint."""
+    """Build the session payload for a page that called the endpoint.
+
+    `fbp` is Meta's browser id, already format-checked by `read_fbp`. The key
+    is omitted, not null, when the visitor has none.
+    """
     # The customer's body-parser config is not something the fix can depend on.
     fields = body if isinstance(body, dict) else {}
 
-    return {
-        "session": {
-            "visitor_id": visitor_id,
-            "session_id": str(uuid.uuid4()),
-            # The page's URL, not ours — a script on the page called us, so our
-            # own path would attribute every session to this endpoint.
-            "url": fields.get("url"),
-            "referrer": fields.get("referrer"),
-            "device_fingerprint": device_fingerprint(ip, user_agent),
-            "user_agent": user_agent,
-            "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        }
+    session = {
+        "visitor_id": visitor_id,
+        "session_id": str(uuid.uuid4()),
+        # The page's URL, not ours — a script on the page called us, so our
+        # own path would attribute every session to this endpoint.
+        "url": fields.get("url"),
+        "referrer": fields.get("referrer"),
+        "device_fingerprint": device_fingerprint(ip, user_agent),
+        "user_agent": user_agent,
+        "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if fbp:
+        session["fbp"] = fbp
+
+    return {"session": session}
 
 
 def create_session_async(
@@ -76,12 +83,13 @@ def create_session_async(
     body: Optional[Dict[str, Any]],
     ip: str,
     user_agent: str,
+    fbp: Optional[str] = None,
 ) -> None:
     """Fire-and-forget session creation via background thread.
 
     All data is captured before the thread starts — no request-object access
     inside the thread (it would be invalid after the response).
     """
-    payload = build_session_payload(visitor_id, body, ip, user_agent)
+    payload = build_session_payload(visitor_id, body, ip, user_agent, fbp)
 
     threading.Thread(target=post, args=("/sessions", payload), daemon=True).start()

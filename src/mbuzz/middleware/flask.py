@@ -5,7 +5,7 @@ from flask import Flask, Response, g, request
 
 from ..config import config
 from ..context import RequestContext, clear_context, set_context
-from ..cookies import VISITOR_COOKIE, VISITOR_MAX_AGE
+from ..cookies import FBP_COOKIE, VISITOR_COOKIE, VISITOR_MAX_AGE, read_fbp
 from ..session_endpoint import (
     NO_CONTENT_STATUS,
     NO_STORE,
@@ -80,6 +80,7 @@ def init_app(app: Flask) -> None:
                 {"url": request.url, "referrer": request.referrer},
                 ip,
                 user_agent,
+                read_fbp(request.cookies.get(FBP_COOKIE)),
             )
 
     @app.teardown_request
@@ -97,6 +98,7 @@ def _handle_session_request() -> Response:
         request.get_json(silent=True),
         _get_client_ip(),
         _get_user_agent(),
+        read_fbp(request.cookies.get(FBP_COOKIE)),
     )
 
     return _session_response(visitor_id)

@@ -16,7 +16,7 @@ from starlette.responses import Response
 
 from ..config import config
 from ..context import RequestContext, clear_context, set_context
-from ..cookies import VISITOR_COOKIE, VISITOR_MAX_AGE
+from ..cookies import FBP_COOKIE, VISITOR_COOKIE, VISITOR_MAX_AGE, read_fbp
 from ..session_endpoint import (
     NO_CONTENT_STATUS,
     NO_STORE,
@@ -89,6 +89,7 @@ class MbuzzMiddleware(BaseHTTPMiddleware):
                 {"url": str(request.url), "referrer": request.headers.get("referer")},
                 ip,
                 user_agent,
+                read_fbp(request.cookies.get(FBP_COOKIE)),
             )
 
         try:
@@ -106,6 +107,7 @@ class MbuzzMiddleware(BaseHTTPMiddleware):
             await _read_json(request),
             _get_client_ip(request),
             _get_user_agent(request),
+            read_fbp(request.cookies.get(FBP_COOKIE)),
         )
 
         response = Response(status_code=NO_CONTENT_STATUS)

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.0 (2026-10-14)
+
+### Added
+
+- **Meta's `_fbp` is forwarded on the session call.** The SDK reads the `_fbp` cookie
+  the customer's Meta Pixel already set and sends it as `fbp` on the session payload, on
+  both paths (the session endpoint and the Flask / Django / FastAPI middleware). Meta merges
+  a server event with the browser Pixel's event on `event_name` + `fbp` when the event IDs
+  differ, so without it every server `Lead` counted as a second one.
+  Accepts Meta's `fb.<n>.<ts>.<random>` and the optional appendix its server-side Parameter
+  Builder adds (`...AQECAQIB`); anything else is dropped. Never written, never invented.
+  The key is omitted, not null, when the cookie is absent or malformed. No install change needed.
+
 ## 0.10.0 (2026-09-08)
 
 ### BREAKING — the page snippet is now required

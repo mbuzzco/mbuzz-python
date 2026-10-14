@@ -19,7 +19,7 @@ from django.http import HttpRequest, HttpResponse
 
 from ..config import config
 from ..context import RequestContext, clear_context, set_context
-from ..cookies import VISITOR_COOKIE, VISITOR_MAX_AGE
+from ..cookies import FBP_COOKIE, VISITOR_COOKIE, VISITOR_MAX_AGE, read_fbp
 from ..session_endpoint import (
     NO_CONTENT_STATUS,
     NO_STORE,
@@ -98,6 +98,7 @@ class MbuzzMiddleware:
                 },
                 ip,
                 user_agent,
+                read_fbp(request.COOKIES.get(FBP_COOKIE)),
             )
 
         try:
@@ -115,6 +116,7 @@ class MbuzzMiddleware:
             _read_json(request),
             _get_client_ip(request),
             _get_user_agent(request),
+            read_fbp(request.COOKIES.get(FBP_COOKIE)),
         )
 
         response = HttpResponse(status=NO_CONTENT_STATUS)
