@@ -39,6 +39,10 @@ NO_STORE = "no-store, no-cache, must-revalidate, private"
 # CookieBootstrap::CONTEXT_PAGE in the WordPress plugin, which got here first.
 MINT_ON_PAGE_RESPONSE = False
 
+# What the middleware reports when it cannot read an address. Not an address:
+# sending it would store a literal "unknown" as the visitor's IP.
+UNKNOWN_ADDRESS = "unknown"
+
 
 def is_session_request(method: str, path: str) -> bool:
     """POST only: a GET is cacheable by an intermediary, which would
@@ -56,7 +60,9 @@ def build_session_payload(
     """Build the session payload for a page that called the endpoint.
 
     `fbp` is Meta's browser id, already format-checked by `read_fbp`. The key
-    is omitted, not null, when the visitor has none.
+    is omitted, not null, when the visitor has none. `ip` is the visitor's
+    address, forwarded so the server can send it to Meta beside the user agent
+    (Meta flags a user agent without one); omitted when none was readable.
     """
     # The customer's body-parser config is not something the fix can depend on.
     fields = body if isinstance(body, dict) else {}
@@ -74,6 +80,8 @@ def build_session_payload(
     }
     if fbp:
         session["fbp"] = fbp
+    if ip and ip != UNKNOWN_ADDRESS:
+        session["ip"] = ip
 
     return {"session": session}
 

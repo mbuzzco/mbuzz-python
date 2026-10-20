@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.1 (2026-10-21)
+
+### Fixed
+
+- **The visitor's IP address is now sent on the session call.** The SDK computed the address
+  to build `device_fingerprint` and then left it out of the payload, so mbuzz never held one
+  and could not send Meta a `client_ip_address` beside the user agent. Meta flags a user agent
+  that arrives without an IP. Both session paths (the session endpoint and the Flask / Django /
+  FastAPI middleware) now forward it. Omitted when the middleware could not read one. No
+  install change needed.
+
 ## 0.11.0 (2026-10-14)
 
 ### Added

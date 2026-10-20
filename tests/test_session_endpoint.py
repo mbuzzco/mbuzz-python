@@ -56,6 +56,22 @@ class TestBuildSessionPayload:
         assert session["device_fingerprint"]
         assert session["session_id"]
 
+    def test_forwards_the_visitors_ip(self):
+        """The server stores it for Meta's client_ip_address, which must pair with the UA."""
+        payload = build_session_payload(
+            visitor_id="vis_123", body={}, ip="203.0.113.9", user_agent="Mozilla/5.0"
+        )
+
+        assert payload["session"]["ip"] == "203.0.113.9"
+
+    def test_omits_the_ip_when_the_middleware_could_not_read_one(self):
+        """'unknown' is the middleware's placeholder, not an address. Never send it."""
+        payload = build_session_payload(
+            visitor_id="vis_123", body={}, ip="unknown", user_agent="Mozilla/5.0"
+        )
+
+        assert "ip" not in payload["session"]
+
     def test_survives_a_body_that_is_not_a_dict(self):
         """The customer's body-parser config is not something the fix can depend on."""
         payload = build_session_payload(
