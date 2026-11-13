@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`api_url` option for data-resident installs.** `init()` accepts it again (removed in 0.8.2 so a live install could not be redirected). Explicit opt-in: `https://` only; a region key (`sk_live_au_...`) must be paired with it and it with a region key, otherwise `init()` throws; there is no fallback host, so a failed request is dropped, never retried against `api.mbuzz.co`. Installs that do not set it behave exactly as before. 
+
 ## 0.11.1 (2026-10-21)
 
 ### Fixed

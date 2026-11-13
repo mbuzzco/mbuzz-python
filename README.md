@@ -230,6 +230,7 @@ mbuzz.init(
     enabled=True,                # Default: True — toggle without code changes
     debug=False,                 # Default: False — enables verbose logging
     timeout=5.0,                 # Default: 5.0s — API request timeout
+    api_url=None,                # Data-resident installs only: https host for a region key (sk_live_au_...); a region key requires it and vice versa
     skip_paths=["/health"],      # Optional — paths to skip tracking
     skip_extensions=[".css"],    # Optional — file extensions to skip
 )

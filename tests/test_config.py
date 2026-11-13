@@ -151,3 +151,39 @@ class TestReset:
         assert config.debug is False
         assert config.timeout == DEFAULT_TIMEOUT
         assert config._initialized is False
+
+
+class TestApiUrl:
+    """api_url for data-resident installs (spec M9)."""
+
+    AU_KEY = "sk_live_au_abc123"
+    AU_URL = "https://ingest.example.com.au/api/v1"
+
+    def setup_method(self):
+        self.config = Config()
+
+    def test_honours_https_api_url_with_region_key_and_trims_slash(self):
+        self.config.init(api_key=self.AU_KEY, api_url=self.AU_URL + "/")
+        assert self.config.api_url == self.AU_URL
+
+    def test_refuses_plain_http(self):
+        with pytest.raises(ValueError, match="https"):
+            self.config.init(api_key=self.AU_KEY, api_url="http://ingest.example.com.au")
+
+    def test_refuses_region_key_without_api_url(self):
+        with pytest.raises(ValueError, match="region"):
+            self.config.init(api_key=self.AU_KEY)
+
+    def test_refuses_global_key_with_api_url(self):
+        with pytest.raises(ValueError, match="region"):
+            self.config.init(api_key="sk_live_abc123", api_url=self.AU_URL)
+
+    def test_test_key_may_use_api_url_over_https(self):
+        self.config.init(api_key="sk_test_abc123", api_url="https://staging.example.com/api/v1")
+        assert self.config.api_url == "https://staging.example.com/api/v1"
+
+    def test_refusal_does_not_half_apply(self):
+        self.config.init(api_key="sk_live_abc123")
+        with pytest.raises(ValueError):
+            self.config.init(api_key=self.AU_KEY)
+        assert self.config.api_key == "sk_live_abc123"

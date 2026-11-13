@@ -19,11 +19,14 @@ def init(
     timeout: Optional[float] = None,
     skip_paths: Optional[list] = None,
     skip_extensions: Optional[list] = None,
+    api_url: Optional[str] = None,
 ) -> None:
     """Initialize the mbuzz SDK.
 
     Args:
         api_key: Your mbuzz API key (required)
+        api_url: Data-resident installs only: the https host for a region key
+            (sk_live_au_...). A region key requires api_url and vice versa.
         enabled: Enable/disable tracking (default: True)
         debug: Enable debug logging (default: False)
         timeout: Request timeout in seconds (default: 5.0)
@@ -32,6 +35,7 @@ def init(
     """
     config.init(
         api_key=api_key,
+        api_url=api_url,
         enabled=enabled,
         debug=debug,
         timeout=timeout,
